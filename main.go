@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -56,8 +58,9 @@ func main() {
 	flag.Bool("light", false, "GitHub light theme (default)")
 	out := flag.String("o", "", "output pdf path (default: <input>.pdf in cwd)")
 	showVer := flag.Bool("version", false, "print version and exit")
+	noOpen := flag.Bool("no-open", false, "do not open the PDF when it is done")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: mdtopdf [--light|--dark] [-o out.pdf] <file.md>")
+		fmt.Fprintln(os.Stderr, "Usage: mdtopdf [--light|--dark] [-o out.pdf] [--no-open] <file.md>")
 		flag.PrintDefaults()
 	}
 	// ponytail: Go's flag pkg stops at the first positional; hoist flags first
@@ -122,6 +125,23 @@ func main() {
 		fail(err)
 	}
 	fmt.Printf("Created: %s (%s theme)\n", outPath, theme)
+
+	if !*noOpen {
+		if err := exec.Command(openCommand(runtime.GOOS), outPath).Start(); err != nil {
+			fmt.Fprintln(os.Stderr, "mdtopdf: could not open the PDF:", err)
+		}
+	}
+}
+
+func openCommand(goos string) string {
+	switch goos {
+	case "darwin":
+		return "open"
+	case "windows":
+		return "start"
+	default:
+		return "xdg-open"
+	}
 }
 
 // reorder moves non-flag arguments to the end.

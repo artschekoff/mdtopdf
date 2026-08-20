@@ -66,7 +66,7 @@ chromedp finds the browser automatically in the usual places.
 ## Usage
 
 ```
-mdtopdf [--light|--dark] [-o out.pdf] <file.md>
+mdtopdf [--light|--dark] [-o out.pdf] [--no-open] <file.md>
 ```
 
 | Flag | Description |
@@ -74,7 +74,12 @@ mdtopdf [--light|--dark] [-o out.pdf] <file.md>
 | `--light` | GitHub light theme *(default)* |
 | `--dark` | GitHub dark theme |
 | `-o PATH` | Output path — defaults to `<input>.pdf` in the current directory |
+| `--no-open` | Don't open the PDF when it's finished |
 | `--version` | Print version and exit |
+
+The finished PDF opens in your default viewer (`open` on macOS, `xdg-open`
+elsewhere) unless you pass `--no-open`. It opens in the background, so it won't
+steal focus.
 
 Flags work before or after the file name, unlike most Go CLIs.
 
