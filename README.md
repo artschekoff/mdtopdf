@@ -78,9 +78,12 @@ mdtopdf [--light|--dark] [-o out.pdf] <file.md>
 
 Flags work before or after the file name, unlike most Go CLIs.
 
-**Layout:** A4 with zero page margins; the 20 mm gutter comes from the stylesheet,
-so dark backgrounds bleed all the way to the paper edge instead of floating in a
-white frame. Relative image paths resolve against the Markdown file's directory.
+**Layout:** A4 with a 20 mm gutter on all four sides. The vertical space lives on
+the `@page` rule rather than on the body's padding, so it repeats on *every*
+sheet — body padding is applied once to the whole flow and leaves interior page
+breaks sitting flush against the paper edge. The cost is that Chrome never
+paints the `@page` margin area, so `--dark` output has a white band top and
+bottom. Relative image paths resolve against the Markdown file's directory.
 
 ## Development
 

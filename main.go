@@ -31,12 +31,15 @@ var version = "dev"
 var tmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <html><head><meta charset="utf-8"><style>
 {{.CSS}}
-@page { margin: 0; size: A4; }
+/* Vertical space must live on @page: it repeats on every sheet, whereas
+   padding on the body box is applied once to the whole flow and leaves
+   interior page breaks flush against the paper edge. */
+@page { margin: 20mm 0; size: A4; }
 html, body { background-color: {{.Bg}}; }
 .markdown-body {
   font-size: 14px;
   line-height: 1.6;
-  padding: 20mm;
+  padding: 0 20mm;
   margin: 0;
   min-height: 100vh;
   background-color: {{.Bg}};
@@ -89,18 +92,12 @@ func main() {
 		fail(err)
 	}
 
-	var html bytes.Buffer
-	err = tmpl.Execute(&html, map[string]any{
-		"CSS":   template.CSS(css),
-		"Bg":    bg,
-		"PreBg": preBg,
-		"Body":  template.HTML(body),
-	})
+	html, err := buildHTML(css, bg, preBg, body)
 	if err != nil {
 		fail(err)
 	}
 
-	pdf, err := renderPDF(html.String(), filepath.Dir(input))
+	pdf, err := renderPDF(html, filepath.Dir(input))
 	if err != nil {
 		fail(err)
 	}
@@ -141,6 +138,18 @@ func reorder(args []string) []string {
 		}
 	}
 	return append(flags, rest...)
+}
+
+// buildHTML wraps rendered markdown in the print stylesheet.
+func buildHTML(css []byte, bg, preBg string, body []byte) (string, error) {
+	var buf bytes.Buffer
+	err := tmpl.Execute(&buf, map[string]any{
+		"CSS":   template.CSS(css),
+		"Bg":    bg,
+		"PreBg": preBg,
+		"Body":  template.HTML(body),
+	})
+	return buf.String(), err
 }
 
 func renderMarkdown(src []byte, style string) ([]byte, error) {

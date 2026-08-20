@@ -23,8 +23,10 @@ pack: build-all
 	tar -czf $(DIST_DIR)/$(BINARY)-linux-amd64.tar.gz  -C $(BIN_DIR) $(BINARY)-linux-amd64
 	tar -czf $(DIST_DIR)/$(BINARY)-linux-arm64.tar.gz  -C $(BIN_DIR) $(BINARY)-linux-arm64
 
-# ponytail: one smoke test, no framework. Fails if the PDF pipeline breaks.
+# ponytail: unit test for the print stylesheet contract, plus one end-to-end
+# smoke render. Fails if the PDF pipeline or the page margins break.
 test: build
+	go test ./...
 	./$(BIN_DIR)/$(BINARY) --dark -o /tmp/mdtopdf-test.pdf testdata/sample.md
 	@head -c 5 /tmp/mdtopdf-test.pdf | grep -q '%PDF-' && echo "OK: valid PDF"
 
