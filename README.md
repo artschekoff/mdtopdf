@@ -78,12 +78,18 @@ mdtopdf [--light|--dark] [-o out.pdf] <file.md>
 
 Flags work before or after the file name, unlike most Go CLIs.
 
-**Layout:** A4 with a 20 mm gutter on all four sides. The vertical space lives on
-the `@page` rule rather than on the body's padding, so it repeats on *every*
-sheet — body padding is applied once to the whole flow and leaves interior page
-breaks sitting flush against the paper edge. The cost is that Chrome never
-paints the `@page` margin area, so `--dark` output has a white band top and
-bottom. Relative image paths resolve against the Markdown file's directory.
+**Layout:** A4 with a 30 mm gutter top and bottom, 20 mm at the sides. The
+vertical space lives on the `@page` rule rather than on the body's padding, so
+it repeats on *every* sheet — body padding is applied once to the whole flow and
+leaves interior page breaks sitting flush against the paper edge. The cost is
+that Chrome never paints the `@page` margin area, so `--dark` output has a white
+band top and bottom. Relative image paths resolve against the Markdown file's
+directory.
+
+**Encoding:** input must be UTF-8. A UTF-8 or UTF-16 BOM is handled, and
+BOM-less UTF-16 is detected and transcoded. Anything still undecodable is
+rejected with an error rather than rendered — invalid bytes otherwise reach
+Chrome as U+FFFD and fill the page with `◆`.
 
 ## Development
 

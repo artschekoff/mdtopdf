@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"html/template"
@@ -11,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
@@ -34,7 +37,7 @@ var tmpl = template.Must(template.New("page").Parse(`<!doctype html>
 /* Vertical space must live on @page: it repeats on every sheet, whereas
    padding on the body box is applied once to the whole flow and leaves
    interior page breaks flush against the paper edge. */
-@page { margin: 20mm 0; size: A4; }
+@page { margin: 30mm 0; size: A4; }
 html, body { background-color: {{.Bg}}; }
 .markdown-body {
   font-size: 14px;
@@ -76,6 +79,10 @@ func main() {
 	src, err := os.ReadFile(input)
 	if err != nil {
 		fail(err)
+	}
+	src, err = decodeInput(src)
+	if err != nil {
+		fail(fmt.Errorf("%s: %w", filepath.Base(input), err))
 	}
 
 	theme, bg, preBg, chromaStyle := "light", "#ffffff", "#f6f8fa", "github"
@@ -138,6 +145,69 @@ func reorder(args []string) []string {
 		}
 	}
 	return append(flags, rest...)
+}
+
+// decodeInput normalises the file to UTF-8. Editors still emit UTF-16 with a
+// BOM, and those bytes survive goldmark untouched, land in a document declared
+// utf-8, and come out of Chrome as pages of U+FFFD replacement characters —
+// so catch them here rather than rendering nonsense.
+func decodeInput(b []byte) ([]byte, error) {
+	switch {
+	case bytes.HasPrefix(b, []byte{0xEF, 0xBB, 0xBF}):
+		b = b[3:]
+	case bytes.HasPrefix(b, []byte{0xFF, 0xFE}):
+		return decodeUTF16(b[2:], binary.LittleEndian), nil
+	case bytes.HasPrefix(b, []byte{0xFE, 0xFF}):
+		return decodeUTF16(b[2:], binary.BigEndian), nil
+	}
+	// A BOM-less UTF-16 file of ASCII is technically valid UTF-8 (NUL is a legal
+	// byte), so the utf8.Valid check below would wave it through. Catch it on the
+	// alternating-NUL signature instead.
+	if order := sniffUTF16(b); order != nil {
+		return decodeUTF16(b, order), nil
+	}
+	if !utf8.Valid(b) {
+		return nil, fmt.Errorf("not valid UTF-8 text " +
+			"(if it is text in a legacy encoding, convert it first, e.g. " +
+			"iconv -f WINDOWS-1251 -t UTF-8 file.md)")
+	}
+	return b, nil
+}
+
+// sniffUTF16 reports the byte order of a BOM-less UTF-16 file, or nil. Latin
+// text in UTF-16 puts a NUL in every second byte, consistently on one side;
+// binary formats scatter their NULs across both.
+func sniffUTF16(b []byte) binary.ByteOrder {
+	n := min(len(b), 512)
+	n -= n % 2
+	if n < 16 {
+		return nil
+	}
+	var even, odd int
+	for i := 0; i < n; i += 2 {
+		if b[i] == 0 {
+			even++
+		}
+		if b[i+1] == 0 {
+			odd++
+		}
+	}
+	pairs := n / 2
+	switch {
+	case odd*10 >= pairs*8 && even*20 <= pairs:
+		return binary.LittleEndian
+	case even*10 >= pairs*8 && odd*20 <= pairs:
+		return binary.BigEndian
+	}
+	return nil
+}
+
+func decodeUTF16(b []byte, order binary.ByteOrder) []byte {
+	u := make([]uint16, 0, len(b)/2)
+	for i := 0; i+1 < len(b); i += 2 {
+		u = append(u, order.Uint16(b[i:]))
+	}
+	return []byte(string(utf16.Decode(u)))
 }
 
 // buildHTML wraps rendered markdown in the print stylesheet.
