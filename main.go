@@ -42,6 +42,7 @@ html, body { background-color: {{.Bg}}; }
   background-color: {{.Bg}};
 }
 .markdown-body pre { background-color: {{.PreBg}} !important; }
+.markdown-body pre, .markdown-body code { tab-size: 4; -moz-tab-size: 4; }
 </style></head><body class="markdown-body">{{.Body}}</body></html>`))
 
 func main() {
