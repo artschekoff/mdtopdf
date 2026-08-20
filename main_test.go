@@ -8,42 +8,42 @@ import (
 	"unicode/utf16"
 )
 
-// Regression guard for the page-break margin bug.
+// Regression guard for the page-break margin bug, round three.
 //
-// Vertical space only repeats on every sheet if it lives on @page. Padding on
-// .markdown-body is applied once to the whole flow, so the first page gets a
-// top gutter, the last page gets a bottom one, and every interior page break
-// lands ~4mm from the paper edge. Measured before the fix: page 1 started
-// 27.5mm from the top, pages 2+ started 4.2mm from the top.
-func TestVerticalSpaceLivesOnPageRule(t *testing.T) {
-	html, err := buildHTML([]byte("/* css */"), "#ffffff", "#f6f8fa", []byte("<p>hi</p>"))
+// The invariant: blank space must repeat at the top and bottom of EVERY page,
+// while the background still reaches the paper edge. Body padding cannot do it
+// (applied once to the whole flow, so interior breaks sit flush against the
+// edge) and @page margins cannot either (Chrome never paints that area, which
+// leaves white bands in dark mode). The gutter therefore lives in thead/tfoot
+// rows, which Chrome repeats on every page, with @page margin left at 0 so the
+// canvas covers the full sheet.
+func TestGutterRepeatsAndBackgroundBleeds(t *testing.T) {
+	html, err := buildHTML([]byte("/* css */"), "#0d1117", "#161b22", "20mm", []byte("<p>hi</p>"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	atPage := regexp.MustCompile(`@page\s*{([^}]*)}`).FindStringSubmatch(html)
-	if atPage == nil {
-		t.Fatal("no @page rule in the print stylesheet")
+	for _, want := range []string{"<thead>", "<tfoot>", `class="gutter"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("missing %s: the gutter no longer repeats across pages", want)
+		}
 	}
-	margin := regexp.MustCompile(`margin:\s*([^;]+);`).FindStringSubmatch(atPage[1])
-	if margin == nil {
-		t.Fatal("@page has no margin declaration")
-	}
-	top := strings.Fields(margin[1])[0]
-	if top == "0" || strings.HasPrefix(top, "0 ") {
-		t.Errorf("@page vertical margin is %q; interior page breaks will sit flush "+
-			"against the paper edge", margin[1])
+	if strings.Count(html, `class="gutter"`) < 2 {
+		t.Error("need a gutter in both thead and tfoot")
 	}
 
-	body := regexp.MustCompile(`\.markdown-body\s*{([^}]*)}`).FindStringSubmatch(html)
-	if body == nil {
-		t.Fatal("no .markdown-body rule")
+	atPage := regexp.MustCompile(`@page\s*{([^}]*)}`).FindStringSubmatch(html)
+	if atPage == nil {
+		t.Fatal("no @page rule")
 	}
-	if pad := regexp.MustCompile(`padding:\s*([^;]+);`).FindStringSubmatch(body[1]); pad != nil {
-		if f := strings.Fields(pad[1]); f[0] != "0" {
-			t.Errorf("padding %q puts vertical space on the body box, which does not "+
-				"repeat across pages; move it to @page", pad[1])
-		}
+	if m := regexp.MustCompile(`margin:\s*([^;]+);`).FindStringSubmatch(atPage[1]); m == nil || strings.Fields(m[1])[0] != "0" {
+		t.Errorf("@page margin must stay 0 or Chrome leaves an unpainted band at the "+
+			"sheet edge; got %v", atPage[1])
+	}
+
+	gut := regexp.MustCompile(`\.gutter\s*{[^}]*height:\s*([^;]+);`).FindStringSubmatch(html)
+	if gut == nil || strings.HasPrefix(gut[1], "0") {
+		t.Errorf("gutter height missing or zero: %v", gut)
 	}
 }
 

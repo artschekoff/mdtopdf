@@ -29,6 +29,9 @@ import (
 //go:embed github-light.css github-dark.css
 var themes embed.FS
 
+// gutterHeight is the blank space repeated at the top and bottom of every page.
+const gutterHeight = "20mm"
+
 // version is set at build time via -ldflags "-X main.version=...".
 var version = "dev"
 
@@ -36,22 +39,33 @@ var version = "dev"
 var tmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <html><head><meta charset="utf-8"><style>
 {{.CSS}}
-/* Vertical space must live on @page: it repeats on every sheet, whereas
-   padding on the body box is applied once to the whole flow and leaves
-   interior page breaks flush against the paper edge. */
-@page { margin: 30mm 0; size: A4; }
-html, body { background-color: {{.Bg}}; }
+/* Full-bleed background: with a zero page margin the canvas covers the whole
+   sheet, so the dark theme reaches the paper edge instead of floating in a
+   white frame. The vertical gutter therefore cannot come from @page — it comes
+   from the thead/tfoot rows below, which Chrome repeats on every page. Body
+   padding would not work: it applies once to the whole flow, leaving interior
+   page breaks flush against the edge. */
+@page { margin: 0; size: A4; }
+html, body { background-color: {{.Bg}}; margin: 0; }
+table.sheet { width: 100%; border-collapse: collapse; }
+table.sheet > * > tr > td { padding: 0; border: 0; }
+.gutter { height: {{.Gutter}}; }
 .markdown-body {
   font-size: 14px;
   line-height: 1.6;
   padding: 0 20mm;
   margin: 0;
-  min-height: 100vh;
   background-color: {{.Bg}};
 }
 .markdown-body pre { background-color: {{.PreBg}} !important; }
 .markdown-body pre, .markdown-body code { tab-size: 4; -moz-tab-size: 4; }
-</style></head><body class="markdown-body">{{.Body}}</body></html>`))
+</style></head><body>
+<table class="sheet">
+<thead><tr><td><div class="gutter"></div></td></tr></thead>
+<tfoot><tr><td><div class="gutter"></div></td></tr></tfoot>
+<tbody><tr><td><div class="markdown-body">{{.Body}}</div></td></tr></tbody>
+</table>
+</body></html>`))
 
 func main() {
 	dark := flag.Bool("dark", false, "GitHub dark theme")
@@ -102,7 +116,7 @@ func main() {
 		fail(err)
 	}
 
-	html, err := buildHTML(css, bg, preBg, body)
+	html, err := buildHTML(css, bg, preBg, gutterHeight, body)
 	if err != nil {
 		fail(err)
 	}
@@ -231,13 +245,14 @@ func decodeUTF16(b []byte, order binary.ByteOrder) []byte {
 }
 
 // buildHTML wraps rendered markdown in the print stylesheet.
-func buildHTML(css []byte, bg, preBg string, body []byte) (string, error) {
+func buildHTML(css []byte, bg, preBg, gutter string, body []byte) (string, error) {
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, map[string]any{
-		"CSS":   template.CSS(css),
-		"Bg":    bg,
-		"PreBg": preBg,
-		"Body":  template.HTML(body),
+		"CSS":    template.CSS(css),
+		"Bg":     bg,
+		"PreBg":  preBg,
+		"Gutter": gutter,
+		"Body":   template.HTML(body),
 	})
 	return buf.String(), err
 }

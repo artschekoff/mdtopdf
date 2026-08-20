@@ -83,13 +83,19 @@ steal focus.
 
 Flags work before or after the file name, unlike most Go CLIs.
 
-**Layout:** A4 with a 30 mm gutter top and bottom, 20 mm at the sides. The
-vertical space lives on the `@page` rule rather than on the body's padding, so
-it repeats on *every* sheet — body padding is applied once to the whole flow and
-leaves interior page breaks sitting flush against the paper edge. The cost is
-that Chrome never paints the `@page` margin area, so `--dark` output has a white
-band top and bottom. Relative image paths resolve against the Markdown file's
-directory.
+**Layout:** A4 with a 20 mm gutter top and bottom, 20 mm at the sides, and the
+background bleeding all the way to the paper edge — so `--dark` gives you a
+genuinely black page, gutter included.
+
+Getting both at once takes a small trick. Body padding can't provide the
+vertical gutter: it applies once to the whole flow, so interior page breaks end
+up flush against the paper edge. `@page` margins can't either: Chrome never
+paints that area, which leaves white bands in dark mode. So the page margin
+stays at `0` (the canvas then covers the full sheet) and the gutter comes from
+`thead`/`tfoot` rows, which Chrome repeats on every page. Adjust it via
+`gutterHeight` in `main.go`.
+
+Relative image paths resolve against the Markdown file's directory.
 
 **Encoding:** input must be UTF-8. A UTF-8 or UTF-16 BOM is handled, and
 BOM-less UTF-16 is detected and transcoded. Anything still undecodable is
